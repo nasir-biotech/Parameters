@@ -1,2 +1,1 @@
-# test_repo
-I am just testing 
+#All R codes used in this study
