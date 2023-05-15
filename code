@@ -1,10 +1,693 @@
-#Heatmap (Fig. 6a)
+#Bacterial PCA (Fig. 2a)
+rm(list=ls())
+options(stringsAsFactors = F)
+library(vegan)
+#library(maptools)
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+library(RColorBrewer)
+mydata<- read.delim('step2.16s.features-table.txt',header = T, row.names = 1,check.names = F)
+mydata<-as.data.frame(t(mydata))
+mydata=decostand(mydata,method = "hellinger")
+otu_pca<- prcomp(mydata,scal=F)
+
+library("factoextra")
+eig.val <- get_eigenvalue(otu_pca)
+write.table(cbind(eig.val),'step.8.eigenvalue_variance_cumulative.txt',row.names = F,
+            sep = '\t',quote = F,fileEncoding = 'GB2312')
+
+var <- get_pca_var(otu_pca)
+
+varcontri<-var$contrib
+write.table(cbind(item=rownames(varcontri),varcontri),'step.8.contribution_each.txt',
+            row.names = F,sep = '\t',quote = F,fileEncoding = 'GB2312')
+pc12 <- as.data.frame(otu_pca$x[,1:2])*100
+pc12$samples<-rownames(pc12)
+
+groups<-read.delim('mygroup.txt',header = T)
+colnames(groups)[1]<-'samples'
+groups$group<-factor(groups$group,levels = groups$group[!duplicated(groups$group)])
+
+pc <-summary(otu_pca)$importance[2,]*100
+pc12<-merge(pc12,groups,by='samples')
+colnames(pc12)[2:3]<-c('PC1','PC2')
+paste(brewer.pal(n=4,'Set1'),collapse = "','")
+mycol<-c('#E41A1C','#377EB8','#4DAF4A')
+
+ggplot(data = pc12,aes(x=PC1,y=PC2,color=group,shape=group)) +
+  geom_point(size=3)+
+  geom_hline(yintercept=0,linetype=2,color='gray') + 
+  geom_vline(xintercept=0,linetype=2,color='gray')+
+  labs(x=paste0("PC1(",round(pc[1],2),"%",")"),y=paste0("PC2(",round(pc[2],2),"%)"))+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  stat_ellipse(aes(x = PC1, y =PC2, color = group,fill=group),alpha=0.1, 
+               linetype = 1, level = 0.95,geom='polygon') +
+  scale_color_manual(values = mycol)+scale_shape_manual(values = 1:15)
+
+
+#Forest bacterial_microbial community (Fig. 2b)
+#test
+library(reshape2)
+library(ggplot2)
+library(RColorBrewer)
+library(dplyr)
+rm(list = ls())
+input="19.top.Family.xls"
+df<-read.delim(file=input,header=T,row.names=1,check.names=FALSE,sep="\t",comment.char="")
+#df<-as.data.frame(t(df))
+df<-sweep(df,MARGIN = 2,colSums(df),'/')
+sample<-colnames(df)[sapply(df, is.numeric)]
+temp<-df[,sample]
+df$sum<-rowSums(temp,na.rm=T)
+df<-df[order(df$sum,decreasing = T),]
+mytop=20
+df1<-df[1:mytop,]
+df1<-na.omit(df1)
+write.table(cbind(item=rownames(df1),df1[,-ncol(df1)]),paste0("top",mytop,input),row.names=F,quote=F, sep="\t")
+df2<-df[mytop+1:nrow(df),]
+df1["Others",]<-colSums(df2,na.rm=T)
+write.table(cbind(item=rownames(df1),df1[,-ncol(df1)]),paste0("top",mytop,'.others.',input),row.names=F,quote=F, sep="\t")
+####read in table
+#rm(list=ls())
+df<-read.delim(paste0("top",mytop,'.others.',input),header = T,check.names = F,row.names = 1)
+df$tax<-rownames(df)
+tax.melt<-melt(df,id.vars='tax')
+colnames(tax.melt)<-c('tax','sample','abundance')
+tax.melt$tax<-factor(tax.melt$tax,levels = rownames(df))
+###change group file
+groups<-read.delim('mygroup.txt',header = T)
+groups<-groups[,1:2]
+colnames(groups)<-c('sample','group')
+groups$group<-factor(groups$group,levels = groups$group[!duplicated(groups$group)])
+tax.melt2<-merge(tax.melt,groups,by='sample')
+tax.melt2$sample<-as.character(tax.melt2$sample)
+tax.melt2<-arrange(tax.melt2,group,tax,desc(abundance))
+#tax.melt2<-arrange(tax.melt2,tax,group,desc(abundance))
+#tax.melt2$tax<-as.character(tax.melt2$tax)
+tax.melt2$sample<-factor(tax.melt2$sample,levels =tax.melt2$sample[!duplicated(tax.melt2$sample)] )
+#tax.melt2$tax<-factor(tax.melt2$tax,levels =tax.melt2$tax[!duplicated(tax.melt2$tax)] )
+mycol<-colorRampPalette(brewer.pal(n=11,name = 'Paired'))(52)
+mycol =c('#969696','#9E0142','#F46D43','#FEE08B','#BCBDDC','#E6F598','#ABDDA4','#66C2A5','#66BD63','#D53E4F','#1B9E77','#FDB863', '#FC8D59','#EF6548','#A63603','#B30000','#6BAED6','#4292C6','#2171B5','#08519C','#08306B','#F0027F','#BF5B17','#9E0142','#969696','#9E0142','#F46D43','#FEE08B','#BCBDDC','#E6F598','#ABDDA4','#66C2A5','#66BD63','#1B9E77','#D95F02','#7570B3','#E7298A','#66A61E','#E6AB02','#A6761D','#666666','#A6CEE3','#1F78B4','#B2DF8A','#33A02C','#FB9A99','#E31A1C','#FDBF6F','#FF7F00','#CAB2D6','#6A3D9A','#FFFF99','#B15928','#D73027')
+ggplot(data=tax.melt2, aes(x=sample, y=abundance, fill=tax)) +
+  geom_bar(stat="identity",position = position_fill(reverse = TRUE),width=0.8,
+           color=NA,# color='black',
+           size=0.05)+
+  guides(fill = guide_legend(ncol=1,reverse=TRUE,keywidth = 1,keyheight = 1,
+                             override.aes = list(size = 0.2),title.position = 'top'))+
+  scale_fill_manual(values = mycol) +
+  #scale_x_discrete(limits = levels(tax.melt2$sample))+
+  facet_grid( ~ group,scales = "free", space = "free")+
+  theme(legend.position='right',legend.justification=c(0, 0),#legend.title = element_blank(),
+        legend.direction="horizontal",
+        panel.background=element_blank(),
+        panel.grid.major.x = element_line(colour = "white"),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        axis.title.x=element_blank(),
+        axis.text.y = element_text( colour="black"),
+        axis.text.x=element_text(angle = 65,colour="black",hjust = 1),
+        axis.title.y = element_text(vjust=0.2, size = 12, face = "bold"),
+        axis.line.y=element_line(), 
+        axis.line.x=element_line(),
+       # axis.ticks.x = element_blank(),
+  ) + scale_y_continuous(expand = c(0,0),
+                         labels =function(x) paste0(x*100))+
+  labs(y = "Relative abundance")
+
+#Fungi_PCA (Fig. 2c)
+rm(list=ls())
+options(stringsAsFactors = F)
+library(vegan)
+#library(maptools)
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+library(RColorBrewer)
+mydata<- read.delim('step2.even.5000.its.features-table.txt',header = T, row.names = 1,check.names = F)
+mydata<-as.data.frame(t(mydata))
+mydata=decostand(mydata,method = "hellinger")
+otu_pca<- prcomp(mydata,scal=F)
+
+library("factoextra")
+eig.val <- get_eigenvalue(otu_pca)
+write.table(cbind(eig.val),'step.8.eigenvalue_variance_cumulative.txt',row.names = F,
+            sep = '\t',quote = F,fileEncoding = 'GB2312')
+
+var <- get_pca_var(otu_pca)
+
+varcontri<-var$contrib
+write.table(cbind(item=rownames(varcontri),varcontri),'step.8.contribution_each.txt',
+            row.names = F,sep = '\t',quote = F,fileEncoding = 'GB2312')
+pc12 <- as.data.frame(otu_pca$x[,1:2])*100
+pc12$samples<-rownames(pc12)
+
+groups<-read.delim('mygroup.txt',header = T)
+colnames(groups)[1]<-'samples'
+groups$group<-factor(groups$group,levels = groups$group[!duplicated(groups$group)])
+
+pc <-summary(otu_pca)$importance[2,]*100
+pc12<-merge(pc12,groups,by='samples')
+colnames(pc12)[2:3]<-c('PC1','PC2')
+paste(brewer.pal(n=4,'Set1'),collapse = "','")
+mycol<-c('#E41A1C','#377EB8','#4DAF4A')
+
+ggplot(data = pc12,aes(x=PC1,y=PC2,color=group,shape=group)) +
+  geom_point(size=3)+
+  geom_hline(yintercept=0,linetype=2,color='gray') + 
+  geom_vline(xintercept=0,linetype=2,color='gray')+
+  labs(x=paste0("PC1(",round(pc[1],2),"%",")"),y=paste0("PC2(",round(pc[2],2),"%)"))+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  stat_ellipse(aes(x = PC1, y =PC2, color = group,fill=group),alpha=0.1, 
+               linetype = 1, level = 0.95,geom='polygon') +
+  scale_color_manual(values = mycol)+scale_shape_manual(values = 1:15)
+
+
+#Forest fungal community (Fig. 2d)
+#test
+library(reshape2)
+library(ggplot2)
+library(RColorBrewer)
+library(dplyr)
+rm(list = ls())
+input="50.top.Family.xls"
+df<-read.delim(file=input,header=T,row.names=1,check.names=FALSE,sep="\t",comment.char="")
+#df<-as.data.frame(t(df))
+df<-sweep(df,MARGIN = 2,colSums(df),'/')
+sample<-colnames(df)[sapply(df, is.numeric)]
+temp<-df[,sample]
+df$sum<-rowSums(temp,na.rm=T)
+df<-df[order(df$sum,decreasing = T),]
+mytop=51
+df1<-df[1:mytop,]
+df1<-na.omit(df1)
+write.table(cbind(item=rownames(df1),df1[,-ncol(df1)]),paste0("top",mytop,input),row.names=F,quote=F, sep="\t")
+df2<-df[mytop+1:nrow(df),]
+df1["Others",]<-colSums(df2,na.rm=T)
+write.table(cbind(item=rownames(df1),df1[,-ncol(df1)]),paste0("top",mytop,'.others.',input),row.names=F,quote=F, sep="\t")
+####read in table
+#rm(list=ls())
+df<-read.delim(paste0("top",mytop,'.others.',input),header = T,check.names = F,row.names = 1)
+df$tax<-rownames(df)
+tax.melt<-melt(df,id.vars='tax')
+colnames(tax.melt)<-c('tax','sample','abundance')
+tax.melt$tax<-factor(tax.melt$tax,levels = rownames(df))
+###change group file
+groups<-read.delim('mygroup.txt',header = T)
+groups<-groups[,1:2]
+colnames(groups)<-c('sample','group')
+groups$group<-factor(groups$group,levels = groups$group[!duplicated(groups$group)])
+tax.melt2<-merge(tax.melt,groups,by='sample')
+tax.melt2$sample<-as.character(tax.melt2$sample)
+tax.melt2<-arrange(tax.melt2,group,tax,desc(abundance))
+#tax.melt2<-arrange(tax.melt2,tax,group,desc(abundance))
+#tax.melt2$tax<-as.character(tax.melt2$tax)
+tax.melt2$sample<-factor(tax.melt2$sample,levels =tax.melt2$sample[!duplicated(tax.melt2$sample)] )
+#tax.melt2$tax<-factor(tax.melt2$tax,levels =tax.melt2$tax[!duplicated(tax.melt2$tax)] )
+mycol<-colorRampPalette(brewer.pal(n=11,name = 'Paired'))(52)
+mycol =c('#969696','#9E0142','#F46D43','#FEE08B','#BCBDDC','#E6F598','#ABDDA4','#66C2A5','#66BD63','#D53E4F','#1B9E77','#FDB863', '#FC8D59','#EF6548','#A63603','#B30000','#6BAED6','#4292C6','#2171B5','#08519C','#08306B','#F0027F','#BF5B17','#9E0142','#969696','#9E0142','#F46D43','#FEE08B','#BCBDDC','#E6F598','#ABDDA4','#66C2A5','#66BD63','#1B9E77','#D95F02','#7570B3','#E7298A','#66A61E','#E6AB02','#A6761D','#666666','#A6CEE3','#1F78B4','#B2DF8A','#33A02C','#FB9A99','#E31A1C','#FDBF6F','#FF7F00','#CAB2D6','#6A3D9A','#FFFF99','#B15928','#D73027')
+ggplot(data=tax.melt2, aes(x=sample, y=abundance, fill=tax)) +
+  geom_bar(stat="identity",position = position_fill(reverse = TRUE),width=0.8,
+           color=NA,# color='black',
+           size=0.05)+
+  guides(fill = guide_legend(ncol=1,reverse=TRUE,keywidth = 0.5,keyheight = 0.5,
+                             override.aes = list(size = 0.2),title.position = 'top'))+
+  scale_fill_manual(values = mycol) +
+  #scale_x_discrete(limits = levels(tax.melt2$sample))+
+  facet_grid( ~ group,scales = "free", space = "free")+
+  theme(legend.position='right',legend.justification=c(0, 0),#legend.title = element_blank(),
+        legend.direction="horizontal",
+        panel.background=element_blank(),
+        panel.grid.major.x = element_line(colour = "white"),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        axis.title.x=element_blank(),
+        axis.text.y = element_text( colour="black"),
+        axis.text.x=element_text(angle = 65,colour="black",hjust = 1),
+        axis.title.y = element_text(vjust=0.2, size = 12, face = "bold"),
+        axis.line.y=element_line(), 
+        axis.line.x=element_line(),
+       # axis.ticks.x = element_blank(),
+  ) + scale_y_continuous(expand = c(0,0),
+                         labels =function(x) paste0(x*100))+
+  labs(y = "Relative abundance")
+
+
+#Lignin_pH correlation with Bacterial community (Fig. 3a)
+#test
+rm(list=ls())
+library(psych)
+library(pheatmap)
+library(RColorBrewer)
+input1<-'50.top.bacteria.txt'
+input2<-'t_env.txt'
+
+df<-read.delim(input1,header = T,row.names = 1,check.names = F)
+myrows<-as.data.frame(t(df))
+mycols<-read.delim(input2,header = T,row.names = 1,check.names = F)
+mycols<-as.data.frame(t(mycols))
+##keep myrows and cols in the same order
+myrows<-myrows[rownames(mycols),]
+#scale data#
+#myrows<-as.data.frame(scale(myrows,center = T,scale = T))
+#mycols<-as.data.frame(scale(mycols,center = T,scale = T))
+
+#?corr.test
+#data.corr <- corr.test(myrows, mycols, method="spearman", adjust="fdr")
+data.corr <- corr.test(myrows, mycols, method="spearman", adjust="none")
+
+data.r <- data.corr$r  # 相关系数
+data.p <- data.corr$p  # p值
+write.table(cbind(item=rownames(data.r),data.r),'correlation_r.value.txt',row.names = F,sep = '\t',quote = F)
+write.table(cbind(item=rownames(data.p),data.p),'correlation_p.value.txt',row.names = F,sep = '\t',quote = F)
+
+
+getSig <- function(dc) {
+  sc <- ''
+  dc[is.na(dc)]<-1
+  if (dc < 0.001) sc <- '***'
+  else if (dc<0.01) sc<-'**'
+  else if (dc < 0.05) sc <- '*'
+  else if (dc < 0.1) sc <- ' '
+  sc
+}
+
+sig.mat <- matrix(sapply(data.p, getSig), nrow=nrow(data.p))
+
+pheatmap(data.r, clustering_method="average", 
+         fontsize_number=12,
+        # number_nudge = 0.01,
+         treeheight_col = 20,
+         treeheight_row = 30,
+         cluster_rows=F, 
+        cluster_cols = F,
+        display_numbers=sig.mat,
+         color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(100))
+
+dev.off()
+
+pheatmap(data.r, clustering_method="average", 
+         filename = paste0('step48.',input1,'_',input2,'.correlation_heatmap.pdf'),
+         width = 4,height =9, 
+         fontsize_number=12,
+        # number_nudge = 0.01,
+         treeheight_col = 20,
+         treeheight_row = 30,
+         cluster_rows=F, display_numbers=sig.mat,
+         color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(100))
+
+df1<-melt(data.r)
+colnames(df1)[3]<-'correlation'
+df2<-melt(data.p)
+df1$p<-df2$value
+df1<-na.omit(df1)
+write.table(df1,'correlation_r_p.txt',row.names = F,sep='\t',quote = F)
+#test
+
+
+#Lignin_pH correlation with Fungal community (Fig. 3b)
+#test
+rm(list=ls())
+library(psych)
+library(pheatmap)
+library(RColorBrewer)
+input1<-'50.top.f.xls.txt'
+input2<-'t_env.txt'
+
+df<-read.delim(input1,header = T,row.names = 1,check.names = F)
+myrows<-as.data.frame(t(df))
+mycols<-read.delim(input2,header = T,row.names = 1,check.names = F)
+mycols<-as.data.frame(t(mycols))
+##keep myrows and cols in the same order
+myrows<-myrows[rownames(mycols),]
+#scale data#
+#myrows<-as.data.frame(scale(myrows,center = T,scale = T))
+#mycols<-as.data.frame(scale(mycols,center = T,scale = T))
+
+#?corr.test
+#data.corr <- corr.test(myrows, mycols, method="spearman", adjust="fdr")
+data.corr <- corr.test(myrows, mycols, method="spearman", adjust="none")
+
+data.r <- data.corr$r  # 相关系数
+data.p <- data.corr$p  # p值
+write.table(cbind(item=rownames(data.r),data.r),'correlation_r.value.txt',row.names = F,sep = '\t',quote = F)
+write.table(cbind(item=rownames(data.p),data.p),'correlation_p.value.txt',row.names = F,sep = '\t',quote = F)
+
+
+getSig <- function(dc) {
+  sc <- ''
+  dc[is.na(dc)]<-1
+  if (dc < 0.001) sc <- '***'
+  else if (dc<0.01) sc<-'**'
+  else if (dc < 0.05) sc <- '*'
+  else if (dc < 0.1) sc <- ' '
+  sc
+}
+
+sig.mat <- matrix(sapply(data.p, getSig), nrow=nrow(data.p))
+
+pheatmap(data.r, clustering_method="average", 
+         fontsize_number=12,
+        # number_nudge = 0.01,
+         treeheight_col = 20,
+         treeheight_row = 30,
+         cluster_rows=F, 
+        cluster_cols = F,
+        display_numbers=sig.mat,
+         color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(100))
+
+dev.off()
+
+pheatmap(data.r, clustering_method="average", 
+         filename = paste0('step48.',input1,'_',input2,'.correlation_heatmap.pdf'),
+         width = 4.5,height =9, 
+         fontsize_number=12,
+        # number_nudge = 0.01,
+         treeheight_col = 20,
+         treeheight_row = 30,
+         cluster_rows=F, display_numbers=sig.mat,
+         color = colorRampPalette(rev(brewer.pal(n = 7, name ="RdYlBu")))(100))
+
+df1<-melt(data.r)
+colnames(df1)[3]<-'correlation'
+df2<-melt(data.p)
+df1$p<-df2$value
+df1<-na.omit(df1)
+write.table(df1,'correlation_r_p.txt',row.names = F,sep='\t',quote = F)
+#test
+
+
+#Kraft lignin emended bacterial community (Fig. 4a)
+#test
+library(reshape2)
+library(ggplot2)
+library(RColorBrewer)
+library(dplyr)
+rm(list = ls())
+input="20.top.Family.txt"
+
+df<-read.delim(file=input,header=T,row.names=1,check.names=FALSE,sep="\t",comment.char="")
+#df<-as.data.frame(t(df))
+df<-sweep(df,MARGIN = 2,colSums(df),'/')
+sample<-colnames(df)[sapply(df, is.numeric)]
+temp<-df[,sample]
+df$sum<-rowSums(temp,na.rm=T)
+df<-df[order(df$sum,decreasing = T),]
+mytop=20
+df1<-df[1:mytop,]
+df1<-na.omit(df1)
+write.table(cbind(item=rownames(df1),df1[,-ncol(df1)]),paste0("top",mytop,input),row.names=F,quote=F, sep="\t")
+df2<-df[mytop+1:nrow(df),]
+df1["Others",]<-colSums(df2,na.rm=T)
+write.table(cbind(item=rownames(df1),df1[,-ncol(df1)]),paste0("top",mytop,'.others.',input),row.names=F,quote=F, sep="\t")
+
+####read in table
+#rm(list=ls())
+df<-read.delim(paste0("top",mytop,'.others.',input),header = T,check.names = F,row.names = 1)
+df$tax<-rownames(df)
+tax.melt<-melt(df,id.vars='tax')
+colnames(tax.melt)<-c('tax','sample','abundance')
+tax.melt$tax<-factor(tax.melt$tax,levels = rownames(df))
+###change group file
+groups<-read.delim('mygroup.txt',header = T)
+
+groups<-groups[,1:2]
+colnames(groups)<-c('sample','group')
+groups$group<-factor(groups$group,levels = groups$group[!duplicated(groups$group)])
+
+tax.melt2<-merge(tax.melt,groups,by='sample')
+tax.melt2$sample<-as.character(tax.melt2$sample)
+
+tax.melt2<-arrange(tax.melt2,group,tax,desc(abundance))
+#tax.melt2<-arrange(tax.melt2,tax,group,desc(abundance))
+
+#tax.melt2$tax<-as.character(tax.melt2$tax)
+tax.melt2$sample<-factor(tax.melt2$sample,levels =tax.melt2$sample[!duplicated(tax.melt2$sample)] )
+#tax.melt2$tax<-factor(tax.melt2$tax,levels =tax.melt2$tax[!duplicated(tax.melt2$tax)] )
+
+
+mycol<-colorRampPalette(brewer.pal(n=11,name = 'Paired'))(21)
+mycol =c('#969696','#9E0142','#F46D43','#FEE08B','#BCBDDC','#E6F598','#ABDDA4','#66C2A5','#66BD63','#D53E4F','#1B9E77','#FDB863', '#FC8D59','#EF6548','#A63603','#B30000','#6BAED6','#4292C6','#2171B5','#08519C','#08306B','#F0027F','#BF5B17','#9E0142','#969696','#9E0142','#F46D43','#FEE08B','#BCBDDC','#E6F598','#ABDDA4','#66C2A5','#66BD63','#1B9E77','#D95F02','#7570B3','#E7298A','#66A61E','#E6AB02','#A6761D','#666666','#A6CEE3','#1F78B4','#B2DF8A','#33A02C','#FB9A99','#E31A1C','#FDBF6F','#FF7F00','#CAB2D6','#6A3D9A','#FFFF99','#B15928','#D73027')
+ggplot(data=tax.melt2, aes(x=sample, y=abundance, fill=tax)) +
+  geom_bar(stat="identity",position = position_fill(reverse = TRUE),width=0.8,
+           color=NA,# color='black',
+           size=0.05)+
+  guides(fill = guide_legend(ncol=1,reverse=TRUE,keywidth = 0.9, keyheight = 0.9,
+                             override.aes = list(size = 0.2),title.position = 'top'))+
+  scale_fill_manual(values = mycol) +
+  #scale_x_discrete(limits = levels(tax.melt2$sample))+
+  facet_grid( ~ group,scales = "free", space = "free")+
+  theme(legend.position='right',legend.justification=c(0, 0),#legend.title = element_blank(),
+        legend.direction="horizontal",
+        panel.background=element_blank(),
+        panel.grid.major.x = element_line(colour = "white"),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        axis.title.x=element_blank(),
+        axis.text.y = element_text( colour="black"),
+        axis.text.x=element_text(angle = 65,colour="black",hjust = 1),
+        axis.title.y = element_text(vjust=0.2, size = 12, face = "bold"),
+        axis.line.y=element_line(), 
+        axis.line.x=element_line(),
+       # axis.ticks.x = element_blank(),
+      
+  ) + scale_y_continuous(expand = c(0,0),
+                         labels =function(x) paste0(x*100))+
+  labs(y = "Relative abundance")
+
+
+#Kraft lignin emended fungal community (Fig. 4b)
+#test
+library(reshape2)
+library(ggplot2)
+library(RColorBrewer)
+library(dplyr)
+rm(list = ls())
+input="20.top.Family_merge.txt"
+
+df<-read.delim(file=input,header=T,row.names=1,check.names=FALSE,sep="\t",comment.char="")
+#df<-as.data.frame(t(df))
+df<-sweep(df,MARGIN = 2,colSums(df),'/')
+sample<-colnames(df)[sapply(df, is.numeric)]
+temp<-df[,sample]
+df$sum<-rowSums(temp,na.rm=T)
+df<-df[order(df$sum,decreasing = T),]
+mytop=51
+df1<-df[1:mytop,]
+df1<-na.omit(df1)
+write.table(cbind(item=rownames(df1),df1[,-ncol(df1)]),paste0("top",mytop,input),row.names=F,quote=F, sep="\t")
+df2<-df[mytop+1:nrow(df),]
+df1["Others",]<-colSums(df2,na.rm=T)
+write.table(cbind(item=rownames(df1),df1[,-ncol(df1)]),paste0("top",mytop,'.others.',input),row.names=F,quote=F, sep="\t")
+
+####read in table
+#rm(list=ls())
+df<-read.delim(paste0("top",mytop,'.others.',input),header = T,check.names = F,row.names = 1)
+df$tax<-rownames(df)
+tax.melt<-melt(df,id.vars='tax')
+colnames(tax.melt)<-c('tax','sample','abundance')
+tax.melt$tax<-factor(tax.melt$tax,levels = rownames(df))
+###change group file
+groups<-read.delim('mygroup.txt',header = T)
+
+groups<-groups[,1:2]
+colnames(groups)<-c('sample','group')
+groups$group<-factor(groups$group,levels = groups$group[!duplicated(groups$group)])
+
+tax.melt2<-merge(tax.melt,groups,by='sample')
+tax.melt2$sample<-as.character(tax.melt2$sample)
+
+tax.melt2<-arrange(tax.melt2,group,tax,desc(abundance))
+#tax.melt2<-arrange(tax.melt2,tax,group,desc(abundance))
+
+#tax.melt2$tax<-as.character(tax.melt2$tax)
+tax.melt2$sample<-factor(tax.melt2$sample,levels =tax.melt2$sample[!duplicated(tax.melt2$sample)] )
+#tax.melt2$tax<-factor(tax.melt2$tax,levels =tax.melt2$tax[!duplicated(tax.melt2$tax)] )
+
+
+mycol<-colorRampPalette(brewer.pal(n=11,name = 'Paired'))(52)
+mycol =c('#969696','#9E0142','#F46D43','#FEE08B','#BCBDDC','#E6F598','#ABDDA4','#66C2A5','#66BD63','#D53E4F','#1B9E77','#FDB863', '#FC8D59','#EF6548','#A63603','#B30000','#6BAED6','#4292C6','#2171B5','#08519C','#08306B','#F0027F','#BF5B17','#9E0142','#969696','#9E0142','#F46D43','#FEE08B','#BCBDDC','#E6F598','#ABDDA4','#66C2A5','#66BD63','#1B9E77','#D95F02','#7570B3','#E7298A','#66A61E','#E6AB02','#A6761D','#666666','#A6CEE3','#1F78B4','#B2DF8A','#33A02C','#FB9A99','#E31A1C','#FDBF6F','#FF7F00','#CAB2D6','#6A3D9A','#FFFF99','#B15928','#D73027')
+ggplot(data=tax.melt2, aes(x=sample, y=abundance, fill=tax)) +
+  geom_bar(stat="identity",position = position_fill(reverse = TRUE),width=0.8,
+           color=NA,# color='black',
+           size=0.05)+
+  guides(fill = guide_legend(ncol=1,reverse=TRUE,keywidth = 0.8, keyheight = 0.8,
+                             override.aes = list(size = 0.2),title.position = 'top'))+
+  scale_fill_manual(values = mycol) +
+  #scale_x_discrete(limits = levels(tax.melt2$sample))+
+  facet_grid( ~ group,scales = "free", space = "free")+
+  theme(legend.position='right',legend.justification=c(0, 0),#legend.title = element_blank(),
+        legend.direction="horizontal",
+        panel.background=element_blank(),
+        panel.grid.major.x = element_line(colour = "white"),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        axis.title.x=element_blank(),
+        axis.text.y = element_text( colour="black"),
+        axis.text.x=element_text(angle = 65,colour="black",hjust = 1),
+        axis.title.y = element_text(vjust=0.2, size = 12, face = "bold"),
+        axis.line.y=element_line(), 
+        axis.line.x=element_line(),
+       # axis.ticks.x = element_blank(),
+      
+  ) + scale_y_continuous(expand = c(0,0),
+                         labels =function(x) paste0(x*100))+
+  labs(y = "Relative abundance")
+
+
+#FBI_Cedar creek (Fig. 5a)
+library(picante)
+library(reshape2)
+library(dplyr)
+rm(list=ls())
+myinput<-'bacterial_fungal.txt'
+groupname<-'mygroup.txt'
+df<-read.delim(myinput,header = T,row.names = 1,check.names = F)
+group1<-read.delim(groupname,header = T)
+colnames(group1)<-c('samples','group')
+df<-df[,as.character(group1$samples)]
+df<-t(df)
+result<-cor.table(df,cor.method  = 'spearman')# spearman, pearson
+
+corr_r<-result$r
+corr_r[upper.tri(corr_r,diag = T)]<-NA
+corr_R<-melt(corr_r)
+colnames(corr_R)<-c('Source','Target','correlation')
+
+corr_p<-result$P
+corr_p[upper.tri(corr_p,diag = T)]<-NA
+corr_P<-melt(corr_p)
+corr_R_P<-corr_R
+corr_R_P$pvalue<-corr_P$value
+corr_R_P<-na.omit(corr_R_P)
+
+corr_R_P$fdr<-p.adjust(corr_R_P$pvalue,method = 'fdr')
+corr_R_P<-as.data.frame(corr_R_P %>% filter(abs(correlation)>0.6,pvalue<0.05))
+corr_R_P$Weight<-abs(corr_R_P$correlation)
+corr_R_P$po_ne<-ifelse(corr_R_P$correlation>0,'positive','negative')
+corr_R_P$color<-ifelse(corr_R_P$correlation>0,'#E41A1C','#377EB8')
+
+edge_type<-read.delim('node_group.txt',header = T)
+colnames(edge_type)[1:2]<-c('Id','type')
+corr_R_P1<-merge(corr_R_P,edge_type,by.x='Source',by.y='Id',all.x = T)
+corr_R_P2<-merge(corr_R_P1,edge_type,by.x='Target',by.y='Id',all.x = T)
+corr_R_P2$newtype<-paste(corr_R_P2$type.x,corr_R_P2$type.y,sep='_')
+#corr_R_P3<-corr_R_P2[corr_R_P2$type.x!=corr_R_P2$type.y,]
+corr_R_P3<-corr_R_P2 %>% distinct() 
+
+write.table(corr_R_P3,paste0('step39.',groupname,'.network_gephi.csv'),row.names = F,quote = F,sep = ',')
+write.table(corr_R_P3,paste0('step39.',groupname,'.network_cytoscape.txt'),row.names = F,quote = F,sep = '\t')
+corr_R_P<-corr_R_P3
+tdf<-as.data.frame(df)
+tdf$item<-rownames(tdf)
+df1<-melt(tdf)
+df1$abundance<-'abundance'
+df2<-as.data.frame(df1 %>% dplyr::select(-item)%>%group_by(variable,abundance) %>% summarise_all(mean) )
+df3<-as.data.frame(dcast(df2,variable~abundance))
+colnames(df3)[1]<-'Id'
+#write.table(df3,paste0(groupname,'all_nodemean.txt'),row.names = F,sep = '\t',quote = F)
+df3<-df3[df3$Id %in%unique(c(as.character(corr_R_P$Source),as.character(corr_R_P$Target))),]
+df3$label<-df3$Id
+
+##
+set_color<-T
+if(set_color==T){
+  node_group<-read.delim('nodegroup_color.txt',header = T)
+  colnames(node_group)[1]<-'Id'
+  df3<-merge(df3,node_group,by='Id')
+}
+write.table(df3,paste0(groupname,'.node_gephi.csv'),row.names = F,quote = F,sep = ',')
+
+#go to gephi import network table and node table
+
+
+#FBI_Kraft_lignin amended (Fig. 5b)
+
+library(picante)
+library(reshape2)
+library(dplyr)
+rm(list=ls())
+myinput<-'kraft_fungi_bacteria.txt'
+groupname<-'mygroup.txt'
+df<-read.delim(myinput,header = T,row.names = 1,check.names = F)
+group1<-read.delim(groupname,header = T)
+colnames(group1)<-c('samples','group')
+df<-df[,as.character(group1$samples)]
+df<-t(df)
+result<-cor.table(df,cor.method  = 'spearman')# spearman, pearson
+
+corr_r<-result$r
+corr_r[upper.tri(corr_r,diag = T)]<-NA
+corr_R<-melt(corr_r)
+colnames(corr_R)<-c('Source','Target','correlation')
+
+corr_p<-result$P
+corr_p[upper.tri(corr_p,diag = T)]<-NA
+corr_P<-melt(corr_p)
+corr_R_P<-corr_R
+corr_R_P$pvalue<-corr_P$value
+corr_R_P<-na.omit(corr_R_P)
+
+corr_R_P$fdr<-p.adjust(corr_R_P$pvalue,method = 'fdr')
+corr_R_P<-as.data.frame(corr_R_P %>% filter(abs(correlation)>0.6,pvalue<0.05))
+corr_R_P$Weight<-abs(corr_R_P$correlation)
+corr_R_P$po_ne<-ifelse(corr_R_P$correlation>0,'positive','negative')
+corr_R_P$color<-ifelse(corr_R_P$correlation>0,'#E41A1C','#377EB8')
+
+edge_type<-read.delim('node_group.txt',header = T)
+colnames(edge_type)[1:2]<-c('Id','type')
+corr_R_P1<-merge(corr_R_P,edge_type,by.x='Source',by.y='Id',all.x = T)
+corr_R_P2<-merge(corr_R_P1,edge_type,by.x='Target',by.y='Id',all.x = T)
+corr_R_P2$newtype<-paste(corr_R_P2$type.x,corr_R_P2$type.y,sep='_')
+#corr_R_P3<-corr_R_P2[corr_R_P2$type.x!=corr_R_P2$type.y,]
+corr_R_P3<-corr_R_P2 %>% distinct() 
+
+write.table(corr_R_P3,paste0('step39.',groupname,'.network_gephi.csv'),row.names = F,quote = F,sep = ',')
+write.table(corr_R_P3,paste0('step39.',groupname,'.network_cytoscape.txt'),row.names = F,quote = F,sep = '\t')
+corr_R_P<-corr_R_P3
+tdf<-as.data.frame(df)
+tdf$item<-rownames(tdf)
+df1<-melt(tdf)
+df1$abundance<-'abundance'
+df2<-as.data.frame(df1 %>% dplyr::select(-item)%>%group_by(variable,abundance) %>% summarise_all(mean) )
+df3<-as.data.frame(dcast(df2,variable~abundance))
+colnames(df3)[1]<-'Id'
+#write.table(df3,paste0(groupname,'all_nodemean.txt'),row.names = F,sep = '\t',quote = F)
+df3<-df3[df3$Id %in%unique(c(as.character(corr_R_P$Source),as.character(corr_R_P$Target))),]
+df3$label<-df3$Id
+
+##
+set_color<-T
+if(set_color==T){
+  node_group<-read.delim('nodegroup_color.txt',header = T)
+  colnames(node_group)[1]<-'Id'
+  df3<-merge(df3,node_group,by='Id')
+}
+write.table(df3,paste0(groupname,'.node_gephi.csv'),row.names = F,quote = F,sep = ',')
+
+#go to gephi import network table and node table
+
+
+#Heatmap_Bacterial growth on lignin monomers (Fig. 6a)
+#Heatmap
+library(d3heatmap)
 data_amatungo<- read.csv("bacterial-monomers.csv", row.names=1,header=T, sep=',')
 head(data_amatungo)
+
+#####
 data_amatungo
 str(data_amatungo)
 library('pheatmap')
 pheatmap(data_amatungo, display_numbers = F, 
-main = "Bacterial Growth on aromatic monomers", 
+main = "Bacterial growth on aromatic monomers", 
 cluster_cols = F, cluster_rows = T,
-angle_col = 45, fontsize_col = 12, fontsize_row = 12)
+angle_col = 45, fontsize_col = 11, fontsize_row = 11, treeheight_col = 25)
+
+
+#ANNOVA ANALYSIS
+> library(agricolae)
+res.aov2 <- aov(len ~ supp + dose, data = my_data)
+summary(res.aov2) 
+
