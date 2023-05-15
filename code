@@ -1,0 +1,10 @@
+#Heatmap (Fig. 6a)
+data_amatungo<- read.csv("bacterial-monomers.csv", row.names=1,header=T, sep=',')
+head(data_amatungo)
+data_amatungo
+str(data_amatungo)
+library('pheatmap')
+pheatmap(data_amatungo, display_numbers = F, 
+main = "Bacterial Growth on aromatic monomers", 
+cluster_cols = F, cluster_rows = T,
+angle_col = 45, fontsize_col = 12, fontsize_row = 12)
